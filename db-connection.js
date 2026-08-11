@@ -1,14 +1,47 @@
 // db-connection.js
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
 // Open database
 const db = new Database(path.join(__dirname, 'app.db'), {
-  verbose: console.log,
+  verbose: process.env.NODE_ENV === 'development' ? console.log : null,
 });
 
 // Always enforce foreign keys
+db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+
+// --- Auto-initialize schema on fresh/empty databases ---
+// This matters on Render: if the disk is ephemeral, app.db starts empty
+// on every deploy/restart, so the 'no such table' error will keep coming
+// back unless something creates the schema at boot.
+function ensureSchema() {
+  const usersTable = db.prepare(`
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users'
+  `).get();
+
+  if (!usersTable) {
+    console.log('⚠️  No tables found — initializing schema from schema.sql...');
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+    db.exec(schemaSql);
+    console.log('✅ Schema created.');
+
+    // Only seed on a genuinely fresh database. Remove this block (or gate it
+    // behind an env var like SEED_ON_INIT=true) once you have real user data
+    // you don't want overwritten.
+    const seedPath = path.join(__dirname, 'seed.sql');
+    if (fs.existsSync(seedPath)) {
+      console.log('🌱 Seeding initial data from seed.sql...');
+      const seedSql = fs.readFileSync(seedPath, 'utf8');
+      db.exec(seedSql);
+      console.log('✅ Seed data inserted.');
+    }
+  }
+}
+
+ensureSchema();
 
 // Export prepared statements
 module.exports = {
@@ -161,7 +194,7 @@ module.exports = {
     JOIN question_topics qt ON q.question_id = qt.question_id
     WHERE qt.topic_id = ?
   `),
-  
+
   // --- Question Topics ---
   getTopicsForQuestion: db.prepare(`
     SELECT t.* FROM topics t

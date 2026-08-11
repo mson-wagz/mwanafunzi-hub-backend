@@ -64,26 +64,25 @@ app.use(httpLogger);
 app.use('/uploads', express.static('uploads'));
 
 // Health check endpoint
+// Health check endpoint
 app.get('/api/health', (req, res) => {
-  db.get('SELECT 1', (err) => {
-    if (err) {
-      logger.error('Health check failed:', err);
-      return res.status(503).json({
-        status: 'error',
-        message: 'Service Unavailable',
-        error: 'Database connection error'
-      });
-    }
-
+  try {
+    db.prepare('SELECT 1').get();
     res.status(200).json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       environment: NODE_ENV,
       version: process.env.npm_package_version
     });
-  });
+  } catch (err) {
+    logger.error('Health check failed:', err);
+    res.status(503).json({
+      status: 'error',
+      message: 'Service Unavailable',
+      error: 'Database connection error'
+    });
+  }
 });
-
 // API routes with debugging
 const routes = [
   { path: '/api/auth', router: authRouter },

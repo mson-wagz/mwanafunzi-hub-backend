@@ -107,3 +107,6 @@ vscode-test/
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
